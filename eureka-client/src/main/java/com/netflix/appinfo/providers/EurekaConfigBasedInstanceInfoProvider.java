@@ -19,12 +19,11 @@ import org.slf4j.LoggerFactory;
 /**
  * InstanceInfo provider that constructs the InstanceInfo this this instance using
  * EurekaInstanceConfig.
- *
+ * <p>
  * This provider is @Singleton scope as it provides the InstanceInfo for both DiscoveryClient
  * and ApplicationInfoManager, and need to provide the same InstanceInfo to both.
  *
  * @author elandau
- *
  */
 @Singleton
 public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceInfo> {
@@ -42,10 +41,17 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
         this.config = config;
     }
 
+    /**
+     * 通过构造器模式，构造实例信息
+     * 也就是 client 向 server 注册所需要的信息
+     *
+     * @return 实例信息
+     */
     @Override
     public synchronized InstanceInfo get() {
         if (instanceInfo == null) {
             // Build the lease information to be passed to the server based on config
+            // 租约信息
             LeaseInfo.Builder leaseInfoBuilder = LeaseInfo.Builder.newBuilder()
                     .setRenewalIntervalInSecs(config.getLeaseRenewalIntervalInSeconds())
                     .setDurationInSecs(config.getLeaseExpirationDurationInSeconds());
@@ -55,6 +61,8 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
             }
 
             // Builder the instance information to be registered with eureka server
+            // 构造器模式
+            // 获取构造器
             InstanceInfo.Builder builder = InstanceInfo.Builder.newBuilder(vipAddressResolver);
 
             // set the appropriate id for the InstanceInfo, falling back to datacenter Id if applicable, else hostname
@@ -81,6 +89,7 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
                 defaultAddress = config.getIpAddress();
             }
 
+            // 构造器开始构造
             builder.setNamespace(config.getNamespace())
                     .setInstanceId(instanceId)
                     .setAppName(config.getAppname())
@@ -98,7 +107,7 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
                     .setStatusPageUrl(config.getStatusPageUrlPath(), config.getStatusPageUrl())
                     .setASGName(config.getASGName())
                     .setHealthCheckUrls(config.getHealthCheckUrlPath(),
-                            config.getHealthCheckUrl(), config.getSecureHealthCheckUrl());
+                                        config.getHealthCheckUrl(), config.getSecureHealthCheckUrl());
 
 
             // Start off with the STARTING state to avoid traffic
@@ -108,11 +117,12 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
                 builder.setStatus(initialStatus);
             } else {
                 LOG.info("Setting initial instance status as: {}. This may be too early for the instance to advertise "
-                         + "itself as available. You would instead want to control this via a healthcheck handler.",
+                                 + "itself as available. You would instead want to control this via a healthcheck handler.",
                          InstanceStatus.UP);
             }
 
             // Add any user-specific metadata information
+            // 配置文件中自定义的元数据
             for (Map.Entry<String, String> mapEntry : config.getMetadataMap().entrySet()) {
                 String key = mapEntry.getKey();
                 String value = mapEntry.getValue();

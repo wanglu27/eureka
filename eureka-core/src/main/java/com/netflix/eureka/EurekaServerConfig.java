@@ -33,6 +33,18 @@ import com.netflix.eureka.aws.AwsBindingStrategy;
  * Note that all configurations are not effective at runtime unless and
  * otherwise specified.
  * </p>
+ * 一般我们来实现获取一个配置项的时候，都是通过 get(String prop) 这种方式
+ * 在一个常量类里定义大量的常量比如：
+ * public class Configs {
+ *     private static final String REMOTE_HOST = "remote.host";
+ * }
+ * props.get(Configs.REMOTE_HOST); 来获取到对应的配置项
+ * 而 Eureka 这里针对配置项定义了一个接口，接口定义大量的方法来获取对应的配置项
+ * 还是上边常量的那个配置，对应到 Eureka 里就是
+ * public interface configs {
+ *     String getRemotHost();
+ * }
+ * 这样直接通过这个方法来获取对应的配置项
  *
  * @author Karthik Ranganathan
  *

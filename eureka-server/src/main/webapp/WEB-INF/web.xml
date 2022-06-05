@@ -5,23 +5,28 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee
 	http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd">
   <listener>
+    <!-- 初始化启动器 bootstrap -->
     <listener-class>com.netflix.eureka.EurekaBootStrap</listener-class>
   </listener>
 
   <filter>
+    <!-- 状态相关逻辑处理 -->
     <filter-name>statusFilter</filter-name>
     <filter-class>com.netflix.eureka.StatusFilter</filter-class>
   </filter>
 
   <filter>
+    <!-- 请求认证授权逻辑处理 -->
     <filter-name>requestAuthFilter</filter-name>
     <filter-class>com.netflix.eureka.ServerRequestAuthFilter</filter-class>
   </filter>
   <filter>
+    <!-- 限流相关逻辑处理 -->
     <filter-name>rateLimitingFilter</filter-name>
     <filter-class>com.netflix.eureka.RateLimitingFilter</filter-class>
   </filter>
   <filter>
+    <!-- gzip压缩 encoding编码 -->
     <filter-name>gzipEncodingEnforcingFilter</filter-name>
     <filter-class>com.netflix.eureka.GzipEncodingEnforcingFilter</filter-class>
   </filter>
@@ -59,6 +64,7 @@
     <url-pattern>/*</url-pattern>
   </filter-mapping>
 
+  <!-- 限流默认是不打开的，如果需要限流自己取消注释rateLimitingFilter的filter-mapping -->
   <!-- Uncomment this to enable rate limiter filter.
   <filter-mapping>
     <filter-name>rateLimitingFilter</filter-name>

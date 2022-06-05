@@ -3,6 +3,7 @@ apply plugin: 'war'
 dependencies {
     compile project(':eureka-client')
     compile project(':eureka-core')
+    // 类似于Spring-mvc 支持mvc模式 支持restful http请求
     compile "com.sun.jersey:jersey-server:$jerseyVersion"
     compile "com.sun.jersey:jersey-servlet:$jerseyVersion"
     compile 'org.slf4j:slf4j-log4j12:1.6.1'
@@ -14,6 +15,7 @@ dependencies {
     providedCompile "javax.servlet:servlet-api:$servletVersion"
 
     testCompile project(':eureka-test-utils')
+    // 单元测试框架
     testCompile "org.mockito:mockito-core:${mockitoVersion}"
     testCompile "org.eclipse.jetty:jetty-server:$jetty_version"
     testCompile "org.eclipse.jetty:jetty-webapp:$jetty_version"
@@ -25,6 +27,7 @@ task copyLibs(type: Copy) {
 }
 
 war {
+    // 打包时会把eureka-resources打入war包里
     from (project(':eureka-resources').file('build/resources/main'))
 }
 

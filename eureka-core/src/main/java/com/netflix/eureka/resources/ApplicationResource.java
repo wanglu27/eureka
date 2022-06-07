@@ -146,6 +146,8 @@ public class ApplicationResource {
                                 @HeaderParam(PeerEurekaNode.HEADER_REPLICATION) String isReplication) {
         logger.debug("Registering instance {} (replication={})", info.getId(), isReplication);
         // validate that the instanceinfo contains all the necessary required fields
+        // 校验必要的参数
+        // 防御式编程 防止别人胡乱传递参数
         if (isBlank(info.getId())) {
             return Response.status(400).entity("Missing instanceId").build();
         } else if (isBlank(info.getHostName())) {
@@ -168,6 +170,13 @@ public class ApplicationResource {
             String dataCenterInfoId = ((UniqueIdentifier) dataCenterInfo).getId();
             if (isBlank(dataCenterInfoId)) {
                 boolean experimental = "true".equalsIgnoreCase(serverConfig.getExperimental("registration.validation.dataCenterInfoId"));
+                /*
+                这里判断是否是aws云直接if else写到了方法里，那么如果后续还要添加阿里云、华为云呢
+                就还需要直接去修改代码非常的恶心
+                这里判断aws云就是修改一下元数据，完全可以添加一个配置项 eureka.client.datacenter 默认default 根据自己的选填
+                DataCenter dataCenter = DataCenterFactory.get() 通过这种方式根据配置文件的配置项，返回对应的实现类
+                dataCenter.refreshMetadata()
+                 */
                 if (experimental) {
                     String entity = "DataCenterInfo of type " + dataCenterInfo.getClass() + " must contain a valid id";
                     return Response.status(400).entity(entity).build();

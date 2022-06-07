@@ -116,6 +116,12 @@ public class EurekaBootStrap implements ServletContextListener {
             initEurekaServerContext();
 
             // 将 serverContext 设置进 ServletContext 中去
+            /*
+            这里将 eureka servre 放到 ServletContext 里去是有目的的
+            EurekaServerContext serverContext = (EurekaServerContext) pageContext.getServletContext()
+                   .getAttribute(EurekaServerContext.class.getName());
+            这是为了在控制台 status.jsp 可以随时获取到注册表的信息展示出来
+             */
             ServletContext sc = event.getServletContext();
             sc.setAttribute(EurekaServerContext.class.getName(), serverContext);
         } catch (Throwable e) {

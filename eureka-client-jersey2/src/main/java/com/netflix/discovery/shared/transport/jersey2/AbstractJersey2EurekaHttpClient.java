@@ -86,6 +86,9 @@ public abstract class AbstractJersey2EurekaHttpClient implements EurekaHttpClien
         String urlPath = "apps/" + info.getAppName();
         Response response = null;
         try {
+            // 发送请求 http://localhost:8080/v2/apps/ServiceA
+            // 这个http://localhost:8080/v2就是配置文件里设置的
+            // 这样server就知道在哪个ip的哪个port有一个ServiceA的服务了
             Builder resourceBuilder = jerseyClient.target(serviceUrl).path(urlPath).request();
             addExtraProperties(resourceBuilder);
             addExtraHeaders(resourceBuilder);

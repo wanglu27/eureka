@@ -289,6 +289,9 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             registrant.setActionType(ActionType.ADDED);
             recentlyChangedQueue.add(new RecentlyChangedItem(lease));
             registrant.setLastUpdatedTimestamp();
+            // 主动过期掉多级缓存中读写缓存对应的key
+            // 这里是主动过期
+            // 定时过期是在构建读写缓存的时候，已经设置了过期时间默认是180s
             invalidateCache(registrant.getAppName(), registrant.getVIPAddress(), registrant.getSecureVipAddress());
             logger.info("Registered instance {}/{} with status {} (replication={})",
                     registrant.getAppName(), registrant.getId(), registrant.getStatus(), isReplication);
@@ -903,6 +906,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         Map<String, Application> applicationInstancesMap = new HashMap<String, Application>();
         write.lock();
         try {
+            // 拿到3分钟内的服务实例变化情况
             Iterator<RecentlyChangedItem> iter = this.recentlyChangedQueue.iterator();
             logger.debug("The number of elements in the delta queue is : {}",
                     this.recentlyChangedQueue.size());
@@ -939,6 +943,8 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 }
             }
 
+            // 这里可以看到拿到了全量注册表的哈希值
+            // 这个哈希值在client端进行更新注册表后用的到
             Applications allApps = getApplications(!disableTransparentFallback);
             apps.setAppsHashCode(allApps.getReconcileHashCode());
             return apps;

@@ -1001,8 +1001,27 @@ public class DiscoveryClient implements EurekaClient {
         try {
             // If the delta is disabled or if it is the first time, get all
             // applications
+            // 1. 获取本地Applications缓存
+            // 封装了 eureka 服务器返回的所有注册信息的类
             Applications applications = getApplications();
 
+            /*
+            这种大量的判断语句不应该直接在主流程中出现，可以将每个都单独提取出来对应一个变量，比如说
+            boolean shouldDisableDelta = clientConfig.shouldDisableDelta();
+            boolean isVipAddressEmpty = !Strings.isNullOrEmpty(clientConfig.getRegistryRefreshSingleVipAddress());
+            boolean isApplicationsEmpty = applications == null;
+            if (shouldDisableDelta || isVipAddressEmpty || isApplicationsEmpty) {
+
+            }
+            这样非常直观的就能看出来到底是在判断个啥
+
+            也可以将这个判断直接提出去作为一个方法
+            if (shouldGetAndStoreFullRegistry()) {
+
+            }
+            这样主流程非常的清爽
+             */
+            // 这里来判断一下是否需要全量抓取注册表
             if (clientConfig.shouldDisableDelta()
                     || (!Strings.isNullOrEmpty(clientConfig.getRegistryRefreshSingleVipAddress()))
                     || forceFullRegistryFetch
@@ -1017,8 +1036,10 @@ public class DiscoveryClient implements EurekaClient {
                 logger.info("Registered Applications size is zero : {}",
                         (applications.getRegisteredApplications().size() == 0));
                 logger.info("Application version is -1: {}", (applications.getVersion() == -1));
+                // 全量抓取的逻辑
                 getAndStoreFullRegistry();
             } else {
+                // 增量抓取的逻辑
                 getAndUpdateDelta(applications);
             }
             applications.setAppsHashCode(applications.getReconcileHashCode());
@@ -1103,6 +1124,7 @@ public class DiscoveryClient implements EurekaClient {
         logger.info("Getting all instance registry info from the eureka server");
 
         Applications apps = null;
+        // 发送请求来拉取注册表
         EurekaHttpResponse<Applications> httpResponse = clientConfig.getRegistryRefreshSingleVipAddress() == null
                 ? eurekaTransport.queryClient.getApplications(remoteRegionsRef.get())
                 : eurekaTransport.queryClient.getVip(clientConfig.getRegistryRefreshSingleVipAddress(), remoteRegionsRef.get());
@@ -1113,7 +1135,9 @@ public class DiscoveryClient implements EurekaClient {
 
         if (apps == null) {
             logger.error("The application is null for some reason. Not storing this information");
+            // CAS来判断是否可以修改注册表
         } else if (fetchRegistryGeneration.compareAndSet(currentUpdateGeneration, currentUpdateGeneration + 1)) {
+            // 设置过滤后的注册表（过滤仅具有up状态的程序实例）
             localRegionApps.set(this.filterAndShuffle(apps));
             logger.debug("Got full registry with apps hashcode {}", apps.getAppsHashCode());
         } else {
@@ -1152,7 +1176,12 @@ public class DiscoveryClient implements EurekaClient {
             String reconcileHashCode = "";
             if (fetchRegistryUpdateLock.tryLock()) {
                 try {
+                    // 将拉取到的增量注册表和本地注册表进行合并
+                    // 拉取到的增加，本地就增加
+                    // 拉取到的修改，本地就修改
+                    // 拉取到的删除，本地就删除
                     updateDelta(delta);
+                    // 更新完后，会计算本地注册表的哈希值，在下边进行比较
                     reconcileHashCode = getReconcileHashCode(applications);
                 } finally {
                     fetchRegistryUpdateLock.unlock();
@@ -1161,6 +1190,8 @@ public class DiscoveryClient implements EurekaClient {
                 logger.warn("Cannot acquire update lock, aborting getAndUpdateDelta");
             }
             // There is a diff in number of instances for some reason
+            // 这里校验本地注册表的哈希值和server端的全量注册表的哈希值是否相等
+            // 如果不相等，那么就重新拉取全量注册表
             if (!reconcileHashCode.equals(delta.getAppsHashCode()) || clientConfig.shouldLogDeltaDiff()) {
                 reconcileAndLogDifference(delta, reconcileHashCode);  // this makes a remoteCall
             }
@@ -1307,6 +1338,8 @@ public class DiscoveryClient implements EurekaClient {
             // registry cache refresh timer
             int registryFetchIntervalSeconds = clientConfig.getRegistryFetchIntervalSeconds();
             int expBackOffBound = clientConfig.getCacheRefreshExecutorExponentialBackOffBound();
+            // 30s刷新一次注册表缓存
+            // 抓取增量注册表的定时任务
             cacheRefreshTask = new TimedSupervisorTask(
                     "cacheRefresh",
                     scheduler,

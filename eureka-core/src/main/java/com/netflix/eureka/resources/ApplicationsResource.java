@@ -145,6 +145,7 @@ public class ApplicationsResource {
             returnMediaType = MediaType.APPLICATION_XML;
         }
 
+        // 缓存key
         Key cacheKey = new Key(Key.EntityType.Application,
                 ResponseCacheImpl.ALL_APPS,
                 keyType, CurrentRequestVersion.get(), EurekaAccept.fromString(eurekaAccept), regions
@@ -157,6 +158,10 @@ public class ApplicationsResource {
                     .header(HEADER_CONTENT_TYPE, returnMediaType)
                     .build();
         } else {
+            // server的多级缓存 responseCache
+            // 用两个map 一个 readOnlyCacheMap 一个 readWriteCacheMap
+            // 先从readOnlyCacheMap读，读不到从readWriteCacheMap读
+            // 还是读不到readWriteCacheMap会走loading方法从注册表里读取，然后放到两个缓存里
             response = Response.ok(responseCache.get(cacheKey))
                     .build();
         }
@@ -239,6 +244,11 @@ public class ApplicationsResource {
                     .header(HEADER_CONTENT_TYPE, returnMediaType)
                     .build();
         } else {
+            // 增量注册表依然是走一个方法，就是cacheKey的组成不一样
+            // 全量的是 ResponseCacheImpl.ALL_APPS
+            // 增量的是 ResponseCacheImpl.ALL_APPS_DELTA
+            // 注册表(InstanceRegistry)维护了一个近期改动队列 recentlyChangedQueue
+            // 并且注册表在初始化时还启动了一个不断淘汰近期改动队列中过期数据的定时任务，默认3分钟之前的
             response = Response.ok(responseCache.get(cacheKey)).build();
         }
 

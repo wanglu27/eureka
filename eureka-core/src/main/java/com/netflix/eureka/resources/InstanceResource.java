@@ -109,6 +109,7 @@ public class InstanceResource {
             @QueryParam("status") String status,
             @QueryParam("lastDirtyTimestamp") String lastDirtyTimestamp) {
         boolean isFromReplicaNode = "true".equals(isReplication);
+        // 这里通过注册表的renuw()方法来进行续约
         boolean isSuccess = registry.renew(app.getName(), id, isFromReplicaNode);
 
         // Not found in the registry, immediately ask for a register
@@ -278,6 +279,11 @@ public class InstanceResource {
     public Response cancelLease(
             @HeaderParam(PeerEurekaNode.HEADER_REPLICATION) String isReplication) {
         try {
+            // 这里来把服务实例下线
+            // 这里猜想一下
+            // eureka server通过注册表、多级缓存、最近修改队列来实现
+            // 下线那么就需要将注册表中的移除，然后添加到最新修改队列等其他的client来拉取增量注册表
+            // 删除读写缓存中服务实例的缓存，只读缓存等待调度任务自动更新
             boolean isSuccess = registry.cancel(app.getName(), id,
                 "true".equals(isReplication));
 

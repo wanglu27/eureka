@@ -902,6 +902,7 @@ public class DiscoveryClient implements EurekaClient {
                 REREGISTER_COUNTER.increment();
                 logger.info(PREFIX + "{} - Re-registering apps/{}", appPathIdentifier, instanceInfo.getAppName());
                 long timestamp = instanceInfo.setIsDirtyWithTime();
+                // 发送心跳之后，发现自己没注册，那么在这里注册一下
                 boolean success = register();
                 if (success) {
                     instanceInfo.unsetIsDirty(timestamp);
@@ -944,13 +945,20 @@ public class DiscoveryClient implements EurekaClient {
                 applicationInfoManager.unregisterStatusChangeListener(statusChangeListener.getId());
             }
 
+            // 关闭初始化eureka client时启动的定时任务
+            // 关闭线程池
             cancelScheduledTasks();
 
             // If APPINFO was registered
+            // 如果服务实例已经注册的话
+            // 设置实例状态为DOWN
             if (applicationInfoManager != null
                     && clientConfig.shouldRegisterWithEureka()
                     && clientConfig.shouldUnregisterOnShutdown()) {
                 applicationInfoManager.setInstanceStatus(InstanceStatus.DOWN);
+
+                // 发送请求给server请求服务下线
+                // 核心方法
                 unregister();
             }
 
@@ -1360,6 +1368,7 @@ public class DiscoveryClient implements EurekaClient {
             logger.info("Starting heartbeat executor: " + "renew interval is: {}", renewalIntervalInSecs);
 
             // Heartbeat timer
+            // 默认30s发起一次心跳
             heartbeatTask = new TimedSupervisorTask(
                     "heartbeat",
                     scheduler,

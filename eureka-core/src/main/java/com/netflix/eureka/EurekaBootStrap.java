@@ -246,6 +246,7 @@ public class EurekaBootStrap implements ServletContextListener {
 
         EurekaServerContextHolder.initialize(serverContext);
 
+        // 初始化eureka-server上下文
         serverContext.initialize();
         logger.info("Initialized server context");
 
@@ -253,6 +254,8 @@ public class EurekaBootStrap implements ServletContextListener {
         // 第六步：从相邻的一个eureka节点拷贝注册表信息
         // 如果相邻的一个节点失败，那么就换到另一个节点
         int registryCount = registry.syncUp();
+
+        // 启动故障感知的定时任务
         registry.openForTraffic(applicationInfoManager, registryCount);
 
         // Register all monitoring statistics.

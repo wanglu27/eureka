@@ -328,11 +328,14 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         read.lock();
         try {
             CANCEL.increment(isReplication);
+            // 拿到服务对应的注册表
             Map<String, Lease<InstanceInfo>> gMap = registry.get(appName);
             Lease<InstanceInfo> leaseToCancel = null;
             if (gMap != null) {
+                // 移除对应的服务实例
                 leaseToCancel = gMap.remove(id);
             }
+            // 塞到最近取消队列
             recentCanceledQueue.add(new Pair<Long, String>(System.currentTimeMillis(), appName + "(" + id + ")"));
             InstanceStatus instanceStatus = overriddenInstanceStatusMap.remove(id);
             if (instanceStatus != null) {
@@ -343,17 +346,27 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 logger.warn("DS: Registry: cancel failed because Lease is not registered for: {}/{}", appName, id);
                 return false;
             } else {
+
+                // 核心方法
+                // 修改这里修改一下服务实例的下线时间
                 leaseToCancel.cancel();
+
                 InstanceInfo instanceInfo = leaseToCancel.getHolder();
                 String vip = null;
                 String svip = null;
                 if (instanceInfo != null) {
                     instanceInfo.setActionType(ActionType.DELETED);
+
+                    // 添加到最近变化队列recentCanceledQueue
+                    // 以便其他client来抓取增量注册表的时候能够更新
                     recentlyChangedQueue.add(new RecentlyChangedItem(leaseToCancel));
+
                     instanceInfo.setLastUpdatedTimestamp();
                     vip = instanceInfo.getVIPAddress();
                     svip = instanceInfo.getSecureVipAddress();
                 }
+                // 还需要将读写缓存中的缓存移除
+                // 只读缓存等他自动更新
                 invalidateCache(appName, vip, svip);
                 logger.info("Cancelled instance {}/{} (replication={})", appName, id, isReplication);
             }
@@ -380,16 +393,22 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
      */
     public boolean renew(String appName, String id, boolean isReplication) {
         RENEW.increment(isReplication);
+        // 获取服务对应的服务租约列表
         Map<String, Lease<InstanceInfo>> gMap = registry.get(appName);
         Lease<InstanceInfo> leaseToRenew = null;
         if (gMap != null) {
+            // 获取client对应的服务租约
             leaseToRenew = gMap.get(id);
         }
+
+        // 这里也没必要if-else嵌套
+        // 本身就是提前结束流程
         if (leaseToRenew == null) {
             RENEW_NOT_FOUND.increment(isReplication);
             logger.warn("DS: Registry: lease doesn't exist, registering resource: {} - {}", appName, id);
             return false;
         } else {
+            // 这种不相关的代码其实可以提出去
             InstanceInfo instanceInfo = leaseToRenew.getHolder();
             if (instanceInfo != null) {
                 // touchASGCache(instanceInfo.getASGName());
@@ -412,6 +431,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 }
             }
             renewsLastMin.increment();
+            // 续约就是更新一下最后更新时间lastUpdateTimestamp
             leaseToRenew.renew();
             return true;
         }
@@ -630,6 +650,10 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             if (leaseMap != null) {
                 for (Entry<String, Lease<InstanceInfo>> leaseEntry : leaseMap.entrySet()) {
                     Lease<InstanceInfo> lease = leaseEntry.getValue();
+                    // 在这里判断心跳是否已经过期了，如果已经过期添加到过期集合中
+                    // 根据这个方法的注释 180s没有发送心跳才会认为故障
+                    // 又因为30秒自动同步只读缓存
+                    // 这么算下来，如果一个client故障了，3分半其他的client才能感知到
                     if (lease.isExpired(additionalLeaseMs) && lease.getHolder() != null) {
                         expiredLeases.add(lease);
                     }
@@ -639,14 +663,24 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
 
         // To compensate for GC pauses or drifting local time, we need to use current registry size as a base for
         // triggering self-preservation. Without that we would wipe out full registry.
+        // 该服务在当前注册表中注册了多少实例
         int registrySize = (int) getLocalRegistrySize();
+        // serverConfig.getRenewalPercentThreshold() 0.85
+        // size * 0.85
         int registrySizeThreshold = (int) (registrySize * serverConfig.getRenewalPercentThreshold());
+        // size * 0.15
+        // 也就是说因为自我保护机制
+        // 最多这次最多摘除15%的实例
         int evictionLimit = registrySize - registrySizeThreshold;
 
+        // 因为存在摘除实例存在最大数量的限制
+        // 就比较限制和过期实例的数量
+        // 取最小值
         int toEvict = Math.min(expiredLeases.size(), evictionLimit);
         if (toEvict > 0) {
             logger.info("Evicting {} items (expired={}, evictionLimit={})", toEvict, expiredLeases.size(), evictionLimit);
 
+            // 随机摘除toEvict个数量的实例
             Random random = new Random(System.currentTimeMillis());
             for (int i = 0; i < toEvict; i++) {
                 // Pick a random item (Knuth shuffle algorithm)
@@ -658,6 +692,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 String id = lease.getHolder().getId();
                 EXPIRED.increment();
                 logger.warn("DS: Registry: expired lease for {}/{}", appName, id);
+                // 移除服务实例
                 internalCancel(appName, id, false);
             }
         }
@@ -1247,7 +1282,9 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         if (evictionTaskRef.get() != null) {
             evictionTaskRef.get().cancel();
         }
+        // EvictionTask 调度任务
         evictionTaskRef.set(new EvictionTask());
+        // 默认1分钟感知一次
         evictionTimer.schedule(evictionTaskRef.get(),
                 serverConfig.getEvictionIntervalTimerInMs(),
                 serverConfig.getEvictionIntervalTimerInMs());
@@ -1276,6 +1313,18 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         @Override
         public void run() {
             try {
+                /*
+                上一次故障感知的时间为20:00
+                但是因为Linux时钟偏差或者gc，导致这次故障感知的时间变成了20:02:30
+                这就超过了一分钟一次的配置
+                通过getCompensationTimeMs()获取到的就是超过这一分钟的多余的时间
+                也就是20:00 20:02:30 这个返回的就是 90s
+                 */
+                // 计算补偿时间
+                // 正常情况下返回0
+                // 如果是注释的那种情况下，延迟了90s才开始新一轮的故障感知，又因为判断是否过期的bug
+                // 也就是说3分钟内没有心跳，并且在这延迟的90s内也没有心跳，那么才算他过期
+                // 在判断是否过期的方法中可以看到这个计算逻辑
                 long compensationTimeMs = getCompensationTimeMs();
                 logger.info("Running the evict task with compensationTime {}ms", compensationTimeMs);
                 evict(compensationTimeMs);
@@ -1292,6 +1341,8 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
          */
         long getCompensationTimeMs() {
             long currNanos = getCurrentTimeNano();
+            // 获取及上一次故障感知的时间
+            // 设置这次故障感知的时间
             long lastNanos = lastExecutionNanosRef.getAndSet(currNanos);
             if (lastNanos == 0l) {
                 return 0l;

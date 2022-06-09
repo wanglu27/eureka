@@ -151,7 +151,11 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
     public void init(PeerEurekaNodes peerEurekaNodes) throws Exception {
         this.numberOfReplicationsLastMin.start();
         this.peerEurekaNodes = peerEurekaNodes;
+        // 初始化多级缓存
+        // readOnlyCacheMap
+        // readWriteCacheMap
         initializedResponseCache();
+        // 自我保护机制
         scheduleRenewalThresholdUpdateTask();
         initRemoteRegionRegistry();
 
@@ -255,6 +259,8 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
         }
         logger.info("Changing status to UP");
         applicationInfoManager.setInstanceStatus(InstanceStatus.UP);
+
+        // 真正启动自动故障感知的方法
         super.postInit();
     }
 

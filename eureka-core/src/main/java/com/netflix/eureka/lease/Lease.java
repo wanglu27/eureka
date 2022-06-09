@@ -60,8 +60,8 @@ public class Lease<T> {
      * {@link #DEFAULT_DURATION_IN_SECS}.
      */
     public void renew() {
+        // duration默认为90s
         lastUpdateTimestamp = System.currentTimeMillis() + duration;
-
     }
 
     /**
@@ -108,6 +108,17 @@ public class Lease<T> {
      * @param additionalLeaseMs any additional lease time to add to the lease evaluation in ms.
      */
     public boolean isExpired(long additionalLeaseMs) {
+        /*
+        public void renew() {
+            lastUpdateTimestamp = System.currentTimeMillis() + duration;
+        }
+        这导致导致了注释上说的 2 * duration 的情况
+         */
+        // 如果这个client没有自己关闭，那么evictionTimestamp > 0就是false
+        // 如果时间依然是正常的1分钟故障感知一次
+        // System.currentTimeMillis() > (lastUpdateTimestamp + duration + additionalLeaseMs)
+        // 也就是90s后没有发送心跳才算故障
+        // 但是因为注释中说的bug，180s之后没有发送心跳才会认为服务实例故障
         return (evictionTimestamp > 0 || System.currentTimeMillis() > (lastUpdateTimestamp + duration + additionalLeaseMs));
     }
 

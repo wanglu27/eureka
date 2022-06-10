@@ -156,6 +156,8 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
         // readWriteCacheMap
         initializedResponseCache();
         // 自我保护机制
+        // 启动更新期望接收到的心跳数量的定时任务
+        // 默认15分钟跑一次
         scheduleRenewalThresholdUpdateTask();
         initRemoteRegionRegistry();
 
@@ -244,7 +246,10 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
     public void openForTraffic(ApplicationInfoManager applicationInfoManager, int count) {
         // Renewals happen every 30 seconds and for a minute it should be a factor of 2.
         this.expectedNumberOfClientsSendingRenews = count;
+        // 这里更新 numberOfRenewsPerMinThreshold
+        // 自我保护中关键的变量
         updateRenewsPerMinThreshold();
+
         logger.info("Got {} instances from neighboring DS node", count);
         logger.info("Renew threshold is: {}", numberOfRenewsPerMinThreshold);
         this.startupTime = System.currentTimeMillis();
@@ -489,6 +494,13 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
             // The self preservation mode is disabled, hence allowing the instances to expire.
             return true;
         }
+        // numberOfRenewsPerMinThreshold 期望一分钟有多少个实例发来心跳
+        // getNumOfRenewsInLastMin() 最近的一分钟发送过来心跳的实例有多少
+        // 如果小于期望的值，那么就返回false
+        // 所以这里的关键这个 numberOfRenewsPerMinThreshold 变量 从哪里来的怎么设定的
+        // 猜想一下，既然是期望接收到的心跳，那么肯定就和这个注册表有多少个注册实例有关
+        // 那么在启动初始化、注册、摘除实例的时候都会更新这个变量
+        // 还有一个更新该变量的定时任务在启动server时，serverContext.initialize()中调用registry.init()方法
         return numberOfRenewsPerMinThreshold > 0 && getNumOfRenewsInLastMin() > numberOfRenewsPerMinThreshold;
     }
 

@@ -71,7 +71,8 @@ public class DefaultEurekaServerContext implements EurekaServerContext {
         try {
             // PeerAwareInstanceRegistry
             // 根据 server 集群的信息，初始化注册表
-            // 应该是将所有的节点的注册表都抓取过来，放到自己的本地缓存中来
+            // 初始化多层缓存
+            // 初始化期望接受心跳数量调度任务
             registry.init(peerEurekaNodes);
         } catch (Exception e) {
             throw new RuntimeException(e);

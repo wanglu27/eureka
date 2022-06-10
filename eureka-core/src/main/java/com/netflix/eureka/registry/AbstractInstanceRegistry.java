@@ -237,6 +237,9 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             } else {
                 // The lease does not exist and hence it is a new registration
                 // 服务实例第一次来注册
+                // 更新注册的client的数量
+                // 然后更新期望发送心跳的数量
+                // 用于自我保护机制
                 synchronized (lock) {
                     if (this.expectedNumberOfClientsSendingRenews > 0) {
                         // Since the client wants to register it, increase the number of clients sending renews
@@ -374,6 +377,10 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             read.unlock();
         }
 
+        // expectedNumberOfClientsSendingRenews > 0
+        // 也就是还依然有client在注册
+        // 然后更新期望发送心跳的数量
+        // 用于自我保护机制
         synchronized (lock) {
             if (this.expectedNumberOfClientsSendingRenews > 0) {
                 // Since the client wants to cancel it, reduce the number of clients to send renews.
@@ -430,6 +437,9 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
 
                 }
             }
+
+            // 记录一下这分钟接受心跳的次数
+            // 一次心跳加一次
             renewsLastMin.increment();
             // 续约就是更新一下最后更新时间lastUpdateTimestamp
             leaseToRenew.renew();
@@ -636,6 +646,10 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     public void evict(long additionalLeaseMs) {
         logger.debug("Running the evict task");
 
+        // 自我保护机制
+        // 如果这一分钟超过85%的实例没有发送心跳
+        // 则认为server端网络出现问题
+        // 不再剔除client实例
         if (!isLeaseExpirationEnabled()) {
             logger.debug("DS: lease expiration is currently disabled.");
             return;
@@ -1208,6 +1222,8 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             description = "Number of total heartbeats received in the last minute", type = DataSourceType.GAUGE)
     @Override
     public long getNumOfRenewsInLastMin() {
+        // renewsLastMin 这个既然是一分钟心跳的次数
+        // 那么必然会在server端处理心跳的地方出现
         return renewsLastMin.getCount();
     }
 
@@ -1254,6 +1270,11 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     }
 
     protected void updateRenewsPerMinThreshold() {
+        // expectedNumberOfClientsSendingRenews 注册实例的数量
+        // 注册实例的数量 * 2 * 0.85
+        // 这里为什么 * 2 呢，因为client每30s发送一次心跳
+        // 1分钟就需要 * 2了
+        // 这2倍就是根据配置的多少s发送一次心跳来算得，如果改为10s发送一次，那就是6倍了
         this.numberOfRenewsPerMinThreshold = (int) (this.expectedNumberOfClientsSendingRenews
                 * (60.0 / serverConfig.getExpectedClientRenewalIntervalSeconds())
                 * serverConfig.getRenewalPercentThreshold());

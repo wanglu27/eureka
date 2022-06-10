@@ -253,9 +253,11 @@ public class EurekaBootStrap implements ServletContextListener {
         // Copy registry from neighboring eureka node
         // 第六步：从相邻的一个eureka节点拷贝注册表信息
         // 如果相邻的一个节点失败，那么就换到另一个节点
+        // registryCount 返回注册的实例数量
         int registryCount = registry.syncUp();
 
         // 启动故障感知的定时任务
+        // 初始化自我保护机制的期望心跳数量
         registry.openForTraffic(applicationInfoManager, registryCount);
 
         // Register all monitoring statistics.

@@ -216,6 +216,8 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
         // Copy entire entry from neighboring DS node
         int count = 0;
 
+        // 从其他节点尝试拉取初始化注册表
+        // 默认是尝试5次
         for (int i = 0; ((i < serverConfig.getRegistrySyncRetries()) && (count == 0)); i++) {
             if (i > 0) {
                 try {
@@ -662,6 +664,14 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
                 if (peerEurekaNodes.isThisMyUrl(node.getServiceUrl())) {
                     continue;
                 }
+                /*
+                根据发送来的请求来进行不同的同步
+                比如注册就是注册，下线就是下线
+                但是有一点需要注意，当server接收到client发来的不论是注册还是下线还是什么的请求时，都会去向其他节点进行同步
+                当时，server在向其他节点进行同步时，也是通过内部维护的client发送请求，那么其他的server接收到同步请求时，也会进行同步
+                这就是不可取的了，所以如果是同步操作的话，server会在发送请求时，设置请求头一个isReplication true，这样其他的server
+                接收到请求就不需要在进行同步了
+                 */
                 replicateInstanceActionsToPeers(action, appName, id, info, newStatus, node);
             }
         } finally {

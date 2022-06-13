@@ -84,6 +84,9 @@ public class PeerEurekaNodes {
                 }
         );
         try {
+            // 更新这个server里的peer列表
+            // 添加新的或者删除旧的更新一下
+            // 新的就发送http请求对应的节点拉取信息 创建Node
             updatePeerEurekaNodes(resolvePeerUrls());
             Runnable peersUpdateTask = new Runnable() {
                 @Override
@@ -96,6 +99,7 @@ public class PeerEurekaNodes {
 
                 }
             };
+            // 调度任务，每5分钟更新一次server维护的peer列表
             taskExecutor.scheduleWithFixedDelay(
                     peersUpdateTask,
                     serverConfig.getPeerEurekaNodesUpdateIntervalMs(),
@@ -186,6 +190,7 @@ public class PeerEurekaNodes {
         if (!toAdd.isEmpty()) {
             logger.info("Adding new peer nodes {}", toAdd);
             for (String peerUrl : toAdd) {
+                // 创建peer节点并加入到集合中
                 newNodeList.add(createPeerEurekaNode(peerUrl));
             }
         }

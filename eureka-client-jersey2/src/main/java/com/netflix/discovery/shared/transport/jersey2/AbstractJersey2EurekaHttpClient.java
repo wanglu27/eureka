@@ -91,6 +91,10 @@ public abstract class AbstractJersey2EurekaHttpClient implements EurekaHttpClien
             // 这样server就知道在哪个ip的哪个port有一个ServiceA的服务了
             Builder resourceBuilder = jerseyClient.target(serviceUrl).path(urlPath).request();
             addExtraProperties(resourceBuilder);
+
+            // 同步请求也会走这个方法，但是每次注册，server都会去同步给其他节点
+            // 这里在请求头设置了 isRepication true
+            // 其他的server节点接收到请求，判断如果是ture，那么就不会再去同步了
             addExtraHeaders(resourceBuilder);
             response = resourceBuilder
                     .accept(MediaType.APPLICATION_JSON)
